@@ -1,6 +1,11 @@
 import math
 import random
 
+# Constants for SECP256K1 curve
+curve_order = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141
+base_point = (0x79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798,
+              0x483ADA7726A3C4655DA4FBFC0E1108A8FD17B448A68554199C47D08FFB10D4B8)
+
 
 def quadratic_sieve(n):
     # Quadratic Sieve algorithm implementation
@@ -39,8 +44,8 @@ def pollards_kangaroo(curve_order, base_point, target_point):
     # Perform the random walks
     for i in range(max_jumps):
         for _ in range(step_size):
-            kangaroo_a = (kangaroo_a + base_point) % curve_order
-            kangaroo_b = (kangaroo_b + target_point) % curve_order
+            kangaroo_a = (kangaroo_a + base_point[0]) % curve_order
+            kangaroo_b = (kangaroo_b + target_point[0]) % curve_order
 
             if kangaroo_a == kangaroo_b:
                 break
@@ -79,9 +84,8 @@ def combine_results(results, small_factors, curve_order):
 
 
 # Example usage
-curve_order = 383  # Example curve order
-base_point = 5  # Example base point
-target_point = 281  # Example target point
+target_point = (0x6CBB85C4C8F8B7FC09F647C9CD9A2A760B5D6A8E179859F572C9E11C72339F6A,
+                0x8D85060C3E67516B566F3A5C6EF4F38F6B04F4E08C3D05F2A1C3F58C84E86663)
 
 # Step 1: Use the Quadratic Sieve algorithm to find small factors
 small_factors = quadratic_sieve(curve_order)
