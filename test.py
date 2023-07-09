@@ -1,10 +1,12 @@
 import math
 import random
+import multiprocessing
+import numpy as np
 
 # Constants for SECP256K1 curve
 curve_order = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141
-base_point = (0x79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798,
-              0x483ADA7726A3C4655DA4FBFC0E1108A8FD17B448A68554199C47D08FFB10D4B8)
+base_point = (str(0x79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798),
+              str(0x483ADA7726A3C4655DA4FBFC0E1108A8FD17B448A68554199C47D08FFB10D4B8))
 
 
 def quadratic_sieve(n):
@@ -28,10 +30,12 @@ def quadratic_sieve(n):
     return factors
 
 
-def pollards_kangaroo(curve_order, base_point, target_point):
-    # Pollard's Kangaroo algorithm implementation
+def pollards_kangaroo(params):
+    # Pollard's Kangaroo algorithm implementation for a single factor
     # Compute the discrete logarithm of 'target_point' with respect to 'base_point'
-    # Returns the discrete logarithm
+    # Returns the factor and the discrete logarithm
+
+    factor, target_point = params
 
     # Set the maximum number of jumps and the step size
     max_jumps = 100000
@@ -44,8 +48,8 @@ def pollards_kangaroo(curve_order, base_point, target_point):
     # Perform the random walks
     for i in range(max_jumps):
         for _ in range(step_size):
-            kangaroo_a = (kangaroo_a + base_point[0]) % curve_order
-            kangaroo_b = (kangaroo_b + target_point[0]) % curve_order
+            kangaroo_a = (kangaroo_a + int(base_point[0])) % curve_order
+            kangaroo_b = (kangaroo_b + int(target_point[0])) % curve_order
 
             if kangaroo_a == kangaroo_b:
                 break
@@ -56,7 +60,7 @@ def pollards_kangaroo(curve_order, base_point, target_point):
     # Compute the discrete logarithm
     discrete_log = (kangaroo_a - kangaroo_b) % curve_order
 
-    return discrete_log
+    return factor, discrete_log
 
 
 def combine_results(results, small_factors, curve_order):
@@ -78,24 +82,28 @@ def combine_results(results, small_factors, curve_order):
     # Apply the CRT to combine the results
     combined_result = 0
     for i in range(len(results)):
-        combined_result += results[i] * (product // small_factors[i]) * inverses[i]
+        combined_result += results[i][1] * (product // small_factors[i]) * inverses[i]
 
     return combined_result % curve_order
 
 
 # Example usage
-target_point = (0x6CBB85C4C8F8B7FC09F647C9CD9A2A760B5D6A8E179859F572C9E11C72339F6A,
-                0x8D85060C3E67516B566F3A5C6EF4F38F6B04F4E08C3D05F2A1C3F58C84E86663)
+target_point = (str(0x6CBB85C4C8F8B7FC09F647C9CD9A2A760B5D6A8E179859F572C9E11C72339F6A),
+                str(0x8D85060C3E67516B566F3A5C6EF4F38F6B04F4E08C3D05F2A1C3F58C84E86663))
 
+print("Finding small factors using Quadratic Sieve...")
 # Step 1: Use the Quadratic Sieve algorithm to find small factors
 small_factors = quadratic_sieve(curve_order)
+print("Small factors:", small_factors)
 
+print("Computing discrete logarithm modulo each small factor using Pollard's Kangaroo...")
 # Step 2: Compute the discrete logarithm modulo each small factor using Pollard's Kangaroo algorithm
-results = []
-for factor in small_factors:
-    discrete_log = pollards_kangaroo(factor, base_point, target_point)
-    results.append(discrete_log)
+pool = multiprocessing.Pool(processes=multiprocessing.cpu_count())
+results = pool.map(pollards_kangaroo, [(factor, target_point) for factor in small_factors])
 
+print("Results modulo small factors:", results)
+
+print("Combining the results using Chinese Remainder Theorem (CRT)...")
 # Step 3: Combine the results using the Chinese Remainder Theorem (CRT)
 final_discrete_log = combine_results(results, small_factors, curve_order)
 
