@@ -88,8 +88,8 @@ def combine_results(results, small_factors, curve_order):
 
 
 # Example usage
-target_point = (str(0x6CBB85C4C8F8B7FC09F647C9CD9A2A760B5D6A8E179859F572C9E11C72339F6A),
-                str(0x8D85060C3E67516B566F3A5C6EF4F38F6B04F4E08C3D05F2A1C3F58C84E86663))
+public_key = input("Enter the public key in hexadecimal format: ")
+public_key = (str(int(public_key[:64], 16)), str(int(public_key[64:], 16)))
 
 print("Finding small factors using Quadratic Sieve...")
 # Step 1: Use the Quadratic Sieve algorithm to find small factors
@@ -99,7 +99,7 @@ print("Small factors:", small_factors)
 print("Computing discrete logarithm modulo each small factor using Pollard's Kangaroo...")
 # Step 2: Compute the discrete logarithm modulo each small factor using Pollard's Kangaroo algorithm
 pool = multiprocessing.Pool(processes=multiprocessing.cpu_count())
-results = pool.map(pollards_kangaroo, [(factor, target_point) for factor in small_factors])
+results = pool.map(pollards_kangaroo, [(factor, public_key) for factor in small_factors])
 
 print("Results modulo small factors:", results)
 
