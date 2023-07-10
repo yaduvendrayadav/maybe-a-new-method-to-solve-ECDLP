@@ -1,110 +1,151 @@
-import math
-import random
-import multiprocessing
-import numpy as np
+import subprocess
+from random import randint
+from ast import literal_eval
+from primefac import primefac
+from math import exp, sqrt, log
 
-# Constants for SECP256K1 curve
-curve_order = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141
-base_point = (str(0x79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798),
-              str(0x483ADA7726A3C4655DA4FBFC0E1108A8FD17B448A68554199C47D08FFB10D4B8))
+# Define the parameters
+g = 37
+h = 211
+p = 18443
+B = 5
+max_equations = 6
 
+# L complexity notation
+def L(x): return exp(log(x)*sqrt(log(log(x))))
 
-def quadratic_sieve(n):
-    # Quadratic Sieve algorithm implementation
-    # Factorize the number 'n' into small factors
-    # Returns a list of small factors of 'n'
-    # (Simplified implementation)
+# Determine if n is B-smooth (uses fast factoring)
+def is_Bsmooth(b, n):
+    P = list(primefac(n))
+    if len(P) != 0 and P[-1] <= b: 
+        return True, P
+    else: return False, P
 
-    factors = []
+# Euclidean modular inverse
+def euclid_modinv(b, n):
+    x0, x1 = 1, 0
+    while n != 0:
+        q, b, n = b // n, n, b % n
+        x0, x1 = x1, x0 - q * x1
+    return x0
 
-    # Perform factorization
-    for i in range(2, int(math.sqrt(n)) + 1):
-        while n % i == 0:
-            factors.append(i)
-            n //= i
+# Convert a list of prime factors (with repetition) to 
+# a dictionary of prime factors and their exponents.
+def factorlist_to_explist(L):
+    D = {}
+    for n in L:
+        try: D[int(n)] += 1
+        except: D[int(n)] = 1
+    return {base : D[base] for base in D.keys()}
 
-    # Check if any remaining factor exists
-    if n > 1:
-        factors.append(n)
+# Chinese remainder theorem
+def chinese_remainder(n, a):
+    prod = reduce(lambda a, b: a*b, n)
+    f = lambda a_i, n_i: a_i * euclid_modinv(prod // n_i, n_i) * (prod // n_i) 
+    return sum([f(a_i, n_i) for n_i, a_i in zip(n, a)]) % prod
 
-    return factors
+# Find congruences in accordance with Hoffstein, Phipher, Silverman (3.32)
+def find_congruences(congruences=[], bases=[]):
+    unique = lambda l: list(set(l))
+    while True:                                                    
+        k = randint(2, p)                                                          
+        _ = is_Bsmooth(B, pow(g,k,p))                                             
+        if _[0]:                                                                   
+            congruences.append((factorlist_to_explist(_[1]),k))                    
+            bases = unique([base for c in [c[0].keys() for c in congruences] for base in c])
+            if len(congruences) >= max_equations: break
+    print('congruences: {}\nbases: {}'.format(len(congruences), len(bases)))
+    return bases, congruences
 
+# Convert the linear system to dense matrices 
+def to_matrices(bases, congruences):
+    M = [[c[0][base] if base in c[0] else 0 for base in bases] for c in congruences]
+    b = [c[1] for c in congruences]
+    return M, b
 
-def pollards_kangaroo(params):
-    # Pollard's Kangaroo algorithm implementation for a single factor
-    # Compute the discrete logarithm of 'target_point' with respect to 'base_point'
-    # Returns the factor and the discrete logarithm
+# Use SageMath to solve (potentially) big systems of equations
+def msolve(M, b):
+    sage_cmd = '''L1 = {};
+L2 = {};
+R = IntegerModRing({});
+M = Matrix(R, L1);
+b = vector(R, L2);
+print(M.solve_right(b))'''.format(M, b, p-1)
+    with open('run.sage', 'w') as output_file:
+        output_file.write(sage_cmd)
+    cmd_result = subprocess.getstatusoutput('sage ./run.sage')
+    if cmd_result[0] != 0:
+        print('Sage failed with error {}'.format(cmd_result[0]))
+        exit()
+    return literal_eval(cmd_result[1])
 
-    factor, target_point = params
+# Solve a linear equation 
+def evaluate(eq, dlogs):
+    return sum([dlogs[term] * exp for term, exp in eq.items()]) % (p-1)
 
-    # Set the maximum number of jumps and the step size
-    max_jumps = 100000
-    step_size = 20
+# Check congruences
+def check_congruences(congruences, dlogs):
+    print('Checking congruences:', end=" ")
+    passed = True
+    for c in congruences:
+        if evaluate(c[0], dlogs) != c[1]:
+            passed = False
+    if passed:
+        print('Passed!\n')
+    else:
+        print('Failed, try running again?')
+        exit()
+    return passed
 
-    # Initialize the kangaroo's positions
-    kangaroo_a = random.randint(1, curve_order - 1)
-    kangaroo_b = kangaroo_a
+# Check dlog exponents
+def check_dlogs(exponents, bases):
+    print('Checking dlog exponents:')
+    passed = True 
+    for exponent, base in zip(exponents, bases):
+        if pow(g, exponent, p) != base:
+            passed = False
+        else:
+            print('{}^{} = {} (mod {})'.format(g, exponent, base, p))
+    if passed:
+        print('Passed!\n')
+    else:
+        print('Failed, try running again.')
+        exit()
+    return passed
 
-    # Perform the random walks
-    for i in range(max_jumps):
-        for _ in range(step_size):
-            kangaroo_a = (kangaroo_a + int(base_point[0])) % curve_order
-            kangaroo_b = (kangaroo_b + int(target_point[0])) % curve_order
+def main():
+    # Generate and solve congruences
+    print('p: {}, g: {}, h: {}, B: {}'.format(p, g, h, B))
+    print('Searching for congruences.')
+    bases, congruences = find_congruences()
+    print('Converting to matrix format.')
+    M, b = to_matrices(bases, congruences)
+    print('Solving linear system with Sage:')
+    exponents = msolve(M, b)
+    print('Sage done.')
 
-            if kangaroo_a == kangaroo_b:
-                break
+    # Dictionary of bases and exponents
+    dlogs = {b: exp for (b, exp) in zip(bases, exponents)}
 
-        if kangaroo_a == kangaroo_b:
+    # Verify the results
+    check_congruences(congruences, dlogs)
+    check_dlogs(exponents, bases)
+
+    print('Searching for k such that h * g^-k is B-smooth.')
+    for i in range(10**9):
+        k = randint(2, p)
+        c = is_Bsmooth(B, (h * pow(euclid_modinv(g, p), k)) % p)
+        if c[0]:
+            print('Found k = {}'.format(k))
             break
 
-    # Compute the discrete logarithm
-    discrete_log = (kangaroo_a - kangaroo_b) % curve_order
+    print('Solving the main dlog problem:\n')
+    soln = (evaluate(factorlist_to_explist(c[1]), dlogs) + k) % (p-1)
+    if pow(g, soln, p) == h:
+        print('{}^{} = {} (mod {}) holds!'.format(g, soln, h, p))
+        print('DLP solution: {}'.format(soln))
+    else:
+        print('Failed.')
 
-    return factor, discrete_log
-
-
-def combine_results(results, small_factors, curve_order):
-    # Combine the results obtained modulo small factors
-    # Using Chinese Remainder Theorem (CRT)
-    # Returns the final discrete logarithm
-
-    # Compute the product of all small factors
-    product = 1
-    for factor in small_factors:
-        product *= factor
-
-    # Compute the inverse of each factor modulo the curve order
-    inverses = []
-    for factor in small_factors:
-        inverse = pow(product // factor, -1, factor)
-        inverses.append(inverse)
-
-    # Apply the CRT to combine the results
-    combined_result = 0
-    for i in range(len(results)):
-        combined_result += results[i][1] * (product // small_factors[i]) * inverses[i]
-
-    return combined_result % curve_order
-
-
-# Example usage
-public_key = input("Enter the public key in hexadecimal format: ")
-public_key = (str(int(public_key[:64], 16)), str(int(public_key[64:], 16)))
-
-print("Finding small factors using Quadratic Sieve...")
-# Step 1: Use the Quadratic Sieve algorithm to find small factors
-small_factors = quadratic_sieve(curve_order)
-print("Small factors:", small_factors)
-
-print("Computing discrete logarithm modulo each small factor using Pollard's Kangaroo...")
-# Step 2: Compute the discrete logarithm modulo each small factor using Pollard's Kangaroo algorithm
-pool = multiprocessing.Pool(processes=multiprocessing.cpu_count())
-results = pool.map(pollards_kangaroo, [(factor, public_key) for factor in small_factors])
-
-print("Results modulo small factors:", results)
-
-print("Combining the results using Chinese Remainder Theorem (CRT)...")
-# Step 3: Combine the results using the Chinese Remainder Theorem (CRT)
-final_discrete_log = combine_results(results, small_factors, curve_order)
-
-print("Discrete logarithm:", final_discrete_log)
+if __name__ == '__main__':
+    main()
