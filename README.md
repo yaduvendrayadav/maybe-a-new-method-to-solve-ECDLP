@@ -1,10 +1,10 @@
 # Discrete Logarithm Problem Solver
 
-This repository contains a Python script that solves the discrete logarithm problem (DLP) using the Chinese remainder theorem and SageMath. The DLP is a fundamental problem in cryptography and number theory. This script also includes functionality to solve the Elliptic Curve Discrete Logarithm Problem (ECDLP) using the index calculus method.
+This repository contains a Python script that solves the discrete logarithm problem using the Chinese remainder theorem and SageMath. The discrete logarithm problem is a fundamental problem in cryptography and number theory.
 
 ## Motive
 
-The motive of this project is to provide a simple implementation of a discrete logarithm problem solver. The code uses efficient algorithms to find congruences and solve linear systems of equations, allowing for the efficient solution of the DLP and ECDLP in certain cases.
+The motive of this project is to provide a simple implementation of a discrete logarithm problem solver. The code uses efficient algorithms to find congruences and solve linear systems of equations, allowing for the efficient solution of the discrete logarithm problem in certain cases.
 
 ## Features
 
@@ -12,7 +12,7 @@ The motive of this project is to provide a simple implementation of a discrete l
 - Converts the linear system to dense matrices for solving using SageMath.
 - Checks congruences and verifies the solutions.
 - Searches for an additional parameter that satisfies a B-smooth condition.
-- Solves the main DLP and ECDLP problems using the index calculus method.
+- Solves the main discrete logarithm problem.
 
 ## Requirements
 
