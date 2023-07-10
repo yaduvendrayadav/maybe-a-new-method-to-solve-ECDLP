@@ -30,6 +30,7 @@ The motive of this project is to provide a simple implementation of a discrete l
 
 Note: The script requires SageMath to solve the linear system of equations. Make sure the `sage` command is available in your system's PATH.
 
+
 ## License
 
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
